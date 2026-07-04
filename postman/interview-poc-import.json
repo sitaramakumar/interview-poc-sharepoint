@@ -1,0 +1,176 @@
+{
+  "collection": {
+    "info": {
+      "name": "Interview POC - SharePoint Document Management",
+      "description": "JWT-based role simulation. IMPORTANT: Run 'Get All JWT Tokens' first — its Tests tab populates the auth variables.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+      {
+        "name": "Auth",
+        "item": [
+          {
+            "name": "Get All JWT Tokens",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/api/tokens",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "tokens"]
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "const response = pm.response.json();",
+                    "pm.environment.set(\"authRead\", \"Bearer \" + response.read);",
+                    "pm.environment.set(\"authWrite\", \"Bearer \" + response.write);",
+                    "pm.environment.set(\"authAdmin\", \"Bearer \" + response.admin);",
+                    "console.log(\"Tokens saved:\", response.read.substring(0, 20) + \"...\");",
+                    "pm.test(\"Tokens returned\", function () {",
+                    "    pm.expect(response.read).to.be.a(\"string\");",
+                    "    pm.expect(response.write).to.be.a(\"string\");",
+                    "    pm.expect(response.admin).to.be.a(\"string\");",
+                    "});"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "View Vault Config",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/api/vault/credentials",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "vault", "credentials"]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Documents",
+        "item": [
+          {
+            "name": "List All Documents",
+            "request": {
+              "method": "GET",
+              "header": [
+                { "key": "Authorization", "value": "{{authRead}}" }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/api/document",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "document"]
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "const data = pm.response.json();",
+                    "pm.test(\"Status 200\", function () {",
+                    "    pm.expect(pm.response.code).to.eql(200);",
+                    "});",
+                    "pm.environment.set(\"docCount\", data.count);",
+                    "if (data.documents && data.documents.length > 0) {",
+                    "    pm.environment.set(\"docId\", data.documents[0].id);",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Get Document by ID",
+            "request": {
+              "method": "GET",
+              "header": [
+                { "key": "Authorization", "value": "{{authRead}}" }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/api/document/{{docId}}",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "document", "{{docId}}"]
+              }
+            }
+          },
+          {
+            "name": "Upload / Create Document",
+            "request": {
+              "method": "PUT",
+              "header": [
+                { "key": "Authorization", "value": "{{authWrite}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Project Plan\",\n  \"content\": \"Q3 deliverables\"\n}"
+              },
+              "url": {
+                "raw": "{{baseUrl}}/api/document/upload",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "document", "upload"]
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status 200\", function () {",
+                    "    pm.expect(pm.response.code).to.eql(200);",
+                    "});",
+                    "const data = pm.response.json();",
+                    "pm.test(\"Role is write\", function () {",
+                    "    pm.expect(data.role).to.eql(\"write\");",
+                    "});",
+                    "if (data.document && data.document.id) {",
+                    "    pm.environment.set(\"docId\", data.document.id);",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Delete Document",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                { "key": "Authorization", "value": "{{authAdmin}}" }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/api/document/{{docId}}",
+                "host": ["{{baseUrl}}"],
+                "path": ["api", "document", "{{docId}}"]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "environment": {
+    "id": "interview-poc-env-v2",
+    "name": "Interview POC - Local",
+    "values": [
+      { "key": "baseUrl", "value": "http://localhost:8080", "type": "default", "enabled": true },
+      { "key": "readToken", "value": "", "type": "default", "enabled": true },
+      { "key": "writeToken", "value": "", "type": "default", "enabled": true },
+      { "key": "adminToken", "value": "", "type": "default", "enabled": true },
+      { "key": "authRead", "value": "", "type": "default", "enabled": true },
+      { "key": "authWrite", "value": "", "type": "default", "enabled": true },
+      { "key": "authAdmin", "value": "", "type": "default", "enabled": true },
+      { "key": "docId", "value": "", "type": "default", "enabled": true },
+      { "key": "docCount", "value": "0", "type": "default", "enabled": true }
+    ]
+  }
+}

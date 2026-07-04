@@ -1,0 +1,9 @@
+FROM alpine:3.20
+RUN apk add --no-cache maven openjdk17
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+COPY data ./data
+RUN mvn compile -q
+EXPOSE 8080
+CMD ["java", "-cp", "target/classes:data", "com.interview.poc.Server"]

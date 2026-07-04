@@ -1,0 +1,6 @@
+﻿Role,User
+Read,user1@YOUR-TENANT.com
+Read,user2@YOUR-TENANT.com
+Write,user3@YOUR-TENANT.com
+Write,user4@YOUR-TENANT.com
+Admin,admin1@YOUR-TENANT.com

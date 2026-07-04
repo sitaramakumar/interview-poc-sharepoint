@@ -1,0 +1,13 @@
+﻿{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "java",
+    "JWT_SECRET": "YOUR-JWT-SECRET",
+    "SHAREPOINT_CLIENT_ID": "YOUR-CLIENT-ID",
+    "SHAREPOINT_CLIENT_SECRET": "<set-client-secret>",
+    "SHAREPOINT_TENANT_ID": "YOUR-TENANT.onmicrosoft.com",
+    "SHAREPOINT_SITE_URL": "https://YOUR-TENANT.sharepoint.com",
+    "SHAREPOINT_LIBRARY_PATH": "/Shared Documents"
+  }
+}

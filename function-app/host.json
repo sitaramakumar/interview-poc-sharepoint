@@ -1,0 +1,9 @@
+{
+  "version": "2.0",
+  "functionTimeout": "PT5M",
+  "extensions": {
+    "http": {
+      "routePrefix": "api"
+    }
+  }
+}

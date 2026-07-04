@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "Interview POC - SharePoint Document Management",
+    "description": "JWT-based role simulation with local SharePoint mock. Import this collection AND the environment, then select the environment before running requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Get All JWT Tokens",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tokens",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tokens"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "pm.environment.set(\"readToken\", response.read);",
+                  "pm.environment.set(\"writeToken\", response.write);",
+                  "pm.environment.set(\"adminToken\", response.admin);",
+                  "console.log(\"Tokens saved. readToken starts with: \" + response.read.substring(0, 20) + \"...\");",
+                  "pm.test(\"Tokens returned\", function () {",
+                  "    pm.expect(response.read).to.be.a(\"string\");",
+                  "    pm.expect(response.write).to.be.a(\"string\");",
+                  "    pm.expect(response.admin).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "View Vault Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/vault/credentials",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vault", "credentials"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "console.log(\"Site URL: \" + data.siteUrl);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List All Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{readToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "document"]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.sendRequest(pm.environment.get('baseUrl') + '/api/tokens', function (err, res) {",
+                  "    if (!err && res.code === 200) {",
+                  "        const data = res.json();",
+                  "        pm.environment.set('readToken', data.read);",
+                  "        pm.environment.set('writeToken', data.write);",
+                  "        pm.environment.set('adminToken', data.admin);",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Response has documents array\", function () {",
+                  "    pm.expect(data.documents).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Has count field\", function () {",
+                  "    pm.expect(data.count).to.be.a(\"number\");",
+                  "});",
+                  "pm.environment.set(\"docCount\", data.count);",
+                  "console.log(\"Document count: \" + data.count);",
+                  "if (data.documents && data.documents.length > 0) {",
+                  "    pm.environment.set(\"docId\", data.documents[0].id);",
+                  "    console.log(\"Saved docId: \" + data.documents[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{readToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document/{{docId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "document", "{{docId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 or 404\", function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    console.log(\"Document title: \" + data.title);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload / Create Document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{writeToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Project Plan\",\n  \"content\": \"Q3 deliverables - sharepoint integration\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/document/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "document", "upload"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Response has message\", function () {",
+                  "    pm.expect(data.message).to.eql(\"Document uploaded successfully\");",
+                  "});",
+                  "pm.test(\"Role is write\", function () {",
+                  "    pm.expect(data.role).to.eql(\"write\");",
+                  "});",
+                  "if (data.document && data.document.id) {",
+                  "    pm.environment.set(\"docId\", data.document.id);",
+                  "    console.log(\"Uploaded docId: \" + data.document.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document/{{docId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "document", "{{docId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status is 200 or 404\", function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    console.log(\"Deleted: \" + data.id);",
+                  "    pm.environment.unset(\"docId\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
