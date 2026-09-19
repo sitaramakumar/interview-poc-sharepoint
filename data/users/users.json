@@ -1,0 +1,20 @@
+{
+  "read@poc.local" : {
+    "clientId" : "read@poc.local",
+    "passwordSalt" : "k9iPX0XPyIZy9fHVeIn9pg==",
+    "passwordHash" : "Q36hwaRxViJ7cl20IQ5rpJpsI7xETDvePZfGKKGVp98=",
+    "role" : "READ"
+  },
+  "write@poc.local" : {
+    "clientId" : "write@poc.local",
+    "passwordSalt" : "fQZfAAWoZ24HMLZXmqgYPA==",
+    "passwordHash" : "ky+KsRYNKHIEijKEXXb2jtnMQBTUL9vGl2gAQ1qaR+8=",
+    "role" : "WRITE"
+  },
+  "admin@poc.local" : {
+    "clientId" : "admin@poc.local",
+    "passwordSalt" : "u0JtbopsBmtFdNr3IzgIoA==",
+    "passwordHash" : "pFe60J5LuDZ3/thPyrhGkpodCesygrC6GtihQH6OAf8=",
+    "role" : "ADMIN"
+  }
+}

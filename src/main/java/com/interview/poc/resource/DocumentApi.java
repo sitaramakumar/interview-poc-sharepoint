@@ -3,13 +3,14 @@ package com.interview.poc.resource;
 import com.interview.poc.auth.IdentityProvider;
 import com.interview.poc.model.Document;
 import com.interview.poc.model.UserRole;
+import com.interview.poc.security.AuthException;
+import com.interview.poc.security.ForbiddenException;
 import com.interview.poc.security.JwtValidator;
 import com.interview.poc.sharepoint.SharePointClient;
 import com.interview.poc.vault.VaultService;
 import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -132,6 +133,9 @@ public class DocumentApi {
         } catch (Exception e) {
             throw new AuthException("Invalid token: " + e.getMessage());
         }
+        if (!JwtValidator.isAccessToken(claims)) {
+            throw new AuthException("Refresh tokens cannot be used to access resources");
+        }
         UserRole role = JwtValidator.extractRole(claims);
         if (!role.allows(method)) {
             throw new ForbiddenException("Role '" + role.getName() + "' does not allow " + method);
@@ -142,14 +146,4 @@ public class DocumentApi {
     }
 
     private record AuthContext(UserRole role, String callerId) {}
-
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public static class AuthException extends RuntimeException {
-        public AuthException(String msg) { super(msg); }
-    }
-
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public static class ForbiddenException extends RuntimeException {
-        public ForbiddenException(String msg) { super(msg); }
-    }
 }

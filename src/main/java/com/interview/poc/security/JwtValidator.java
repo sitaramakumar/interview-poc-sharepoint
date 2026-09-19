@@ -16,6 +16,10 @@ public class JwtValidator {
     /** RFC 7518 §3.2: HMAC-SHA keys must be at least 256 bits (32 bytes). */
     private static final int MIN_SECRET_BYTES = 32;
 
+    private static final String TOKEN_TYPE_CLAIM = "tokenType";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
+
     private static final String SECRET = AppConfig.get("jwt.secret", "YOUR-JWT-SECRET");
     private static final SecretKey SIGNING_KEY = buildSigningKey(SECRET);
 
@@ -71,13 +75,36 @@ public class JwtValidator {
         return UserRole.READ;
     }
 
+    /** Convenience: an access token, same as generateAccessToken(). Kept so /api/tokens and existing callers don't need to change. */
     public static String generateToken(String clientId, UserRole role, long expirySeconds) {
+        return generateAccessToken(clientId, role, expirySeconds);
+    }
+
+    public static String generateAccessToken(String clientId, UserRole role, long expirySeconds) {
+        return buildToken(clientId, role, expirySeconds, ACCESS_TOKEN_TYPE);
+    }
+
+    /** Longer-lived, exchanged at /api/auth/refresh for a new access token — never accepted by DocumentApi.authorize(). */
+    public static String generateRefreshToken(String clientId, UserRole role, long expirySeconds) {
+        return buildToken(clientId, role, expirySeconds, REFRESH_TOKEN_TYPE);
+    }
+
+    private static String buildToken(String clientId, UserRole role, long expirySeconds, String tokenType) {
         return Jwts.builder()
                 .subject(clientId)
                 .claim("role", role.getName())
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirySeconds * 1000))
                 .signWith(SIGNING_KEY)
                 .compact();
+    }
+
+    public static boolean isAccessToken(Claims claims) {
+        return ACCESS_TOKEN_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM));
+    }
+
+    public static boolean isRefreshToken(Claims claims) {
+        return REFRESH_TOKEN_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM));
     }
 }
