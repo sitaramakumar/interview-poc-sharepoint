@@ -1,4 +1,4 @@
-﻿package com.interview.poc.vault;
+package com.interview.poc.vault;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.interview.poc.config.AppConfig;
