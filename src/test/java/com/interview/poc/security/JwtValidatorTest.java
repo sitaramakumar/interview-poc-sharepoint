@@ -6,7 +6,9 @@ import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtValidatorTest {
 
@@ -94,6 +96,37 @@ class JwtValidatorTest {
         Claims claims = JwtValidator.validateToken(token);
 
         assertEquals(UserRole.READ, JwtValidator.extractRole(claims));
+    }
+
+    @Test
+    void generateTokenLegacyConvenienceProducesAnAccessToken() {
+        // generateToken() predates tokenType and is kept only so /api/tokens and
+        // other existing callers don't need to change - confirm it still counts
+        // as an access token under the new check in DocumentApi.authorize().
+        String token = JwtValidator.generateToken("client-1", UserRole.READ, 300);
+        Claims claims = JwtValidator.validateToken(token);
+
+        assertTrue(JwtValidator.isAccessToken(claims));
+        assertFalse(JwtValidator.isRefreshToken(claims));
+    }
+
+    @Test
+    void generateRefreshTokenProducesATokenTheAccessCheckRejects() {
+        String token = JwtValidator.generateRefreshToken("client-1", UserRole.READ, 300);
+        Claims claims = JwtValidator.validateToken(token);
+
+        assertTrue(JwtValidator.isRefreshToken(claims));
+        assertFalse(JwtValidator.isAccessToken(claims));
+    }
+
+    @Test
+    void generateAccessTokenRoundTripsClientIdAndRoleJustLikeGenerateToken() {
+        String token = JwtValidator.generateAccessToken("client-99", UserRole.ADMIN, 300);
+        Claims claims = JwtValidator.validateToken(token);
+
+        assertEquals("client-99", claims.getSubject());
+        assertEquals(UserRole.ADMIN, JwtValidator.extractRole(claims));
+        assertTrue(JwtValidator.isAccessToken(claims));
     }
 
     /**

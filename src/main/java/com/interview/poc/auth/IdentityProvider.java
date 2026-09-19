@@ -2,11 +2,7 @@ package com.interview.poc.auth;
 
 import com.interview.poc.config.AppConfig;
 import com.interview.poc.model.UserRole;
-
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.Base64;
+import com.interview.poc.security.JwtValidator;
 
 /**
  * Simulates Azure AD / ForgeRock identity provider operations.
@@ -19,18 +15,17 @@ import java.util.Base64;
  */
 public class IdentityProvider {
 
-    private static final String SECRET = AppConfig.get("jwt.secret", "poc-secret-key-change-me");
-
+    /**
+     * Used to mint the same access token JwtValidator/AuthApi issue elsewhere —
+     * this class previously built its own JJWT token with its own fallback
+     * secret and the deprecated 0.11-style builder API, an independent path
+     * that only agreed with JwtValidator's tokens because both happened to
+     * resolve the same jwt.secret config value. Adding refresh tokens forced
+     * the question of which path owns tokenType, so this got consolidated
+     * onto the one path that already has the weak-key check.
+     */
     public static String issueToken(String clientId, UserRole role, long expirySeconds) {
-        var claims = new java.util.HashMap<String, Object>();
-        claims.put("role", role.getName());
-        return io.jsonwebtoken.Jwts.builder()
-                .setSubject(clientId)
-                .addClaims(claims)
-                .setIssuedAt(new java.util.Date())
-                .setExpiration(new java.util.Date(System.currentTimeMillis() + expirySeconds * 1000))
-                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(SECRET.getBytes()))
-                .compact();
+        return JwtValidator.generateAccessToken(clientId, role, expirySeconds);
     }
 
     public static String getClientId() {
