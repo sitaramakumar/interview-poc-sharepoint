@@ -2,9 +2,13 @@ package com.interview.poc.sharepoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.interview.poc.acl.DocumentAcl;
+import com.interview.poc.acl.DocumentAccessGuard;
+import com.interview.poc.acl.DocumentAclStore;
 import com.interview.poc.config.AppConfig;
 import com.interview.poc.model.Document;
 import com.interview.poc.model.SharePointCredentials;
+import com.interview.poc.model.UserRole;
 import com.interview.poc.vault.VaultService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +41,7 @@ public class SharePointClient {
     private static final String GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 
     private final HttpClient http;
+    private final DocumentAclStore aclStore;
     private final String siteUrl;
     private final String tenantId;
     private final String clientId;
@@ -58,6 +63,7 @@ public class SharePointClient {
                 .connectTimeout(Duration.ofSeconds(20))
                 .followRedirects(HttpClient.Redirect.ALWAYS)
                 .build();
+        this.aclStore = new DocumentAclStore();
 
         requireNotBlank(clientId, "SHAREPOINT_CLIENT_ID or sharepoint.client.id is required");
         requireNotBlank(clientSecret, "SHAREPOINT_CLIENT_SECRET or sharepoint.client.secret is required");
@@ -66,7 +72,7 @@ public class SharePointClient {
         log.info("Connected to SharePoint site {} using library {}", siteUrl, libraryPath);
     }
 
-    public List<Document> listDocuments() {
+    public List<Document> listDocuments(String callerId, UserRole callerRole) {
         JsonNode root = getJson(graphUrl("/sites/" + siteId + "/drive/root/children"));
         List<Document> documents = new ArrayList<>();
 
@@ -75,13 +81,16 @@ public class SharePointClient {
                 continue;
             }
             String id = item.path("id").asText();
+            if (!DocumentAccessGuard.allows(aclStore.find(id).orElse(null), callerId, callerRole)) {
+                continue;
+            }
             String content = "";
             try {
                 content = downloadText(id);
             } catch (Exception e) {
                 log.warn("Could not read content for SharePoint file {} : {}", item.path("name").asText(), e.getMessage());
             }
-            documents.add(toDocument(item, content));
+            documents.add(withAcl(toDocument(item, content), id));
         }
 
         return documents.stream()
@@ -89,17 +98,21 @@ public class SharePointClient {
                 .collect(Collectors.toList());
     }
 
-    public Document getDocument(String id) {
+    public Document getDocument(String id, String callerId, UserRole callerRole) {
         requireNotBlank(id, "Document id is required");
+        DocumentAccessGuard.check(aclStore.find(id).orElse(null), callerId, callerRole, id);
         JsonNode item = getJson(graphUrl("/sites/" + siteId + "/drive/items/" + encodePathSegment(id)));
-        return toDocument(item, downloadText(id));
+        return withAcl(toDocument(item, downloadText(id)), id);
     }
 
-    public Document createOrUpdateDocument(Document doc) {
+    public Document createOrUpdateDocument(Document doc, String callerId, UserRole callerRole) {
         if (doc == null) {
             throw new IllegalArgumentException("Document body is required");
         }
         String id = isBlank(doc.getId()) ? UUID.randomUUID().toString() : doc.getId();
+        DocumentAcl existingAcl = aclStore.find(id).orElse(null);
+        DocumentAccessGuard.check(existingAcl, callerId, callerRole, id);
+
         String fileName = buildFileName(id, doc.getTitle());
         byte[] contentBytes = (doc.getContent() == null ? "" : doc.getContent()).getBytes(StandardCharsets.UTF_8);
         String uploadUrl = graphUrl("/sites/" + siteId + "/drive/root:/" + encodePathSegment(fileName) + ":/content");
@@ -108,12 +121,22 @@ public class SharePointClient {
         Document saved = toDocument(uploaded, doc.getContent() == null ? "" : doc.getContent());
         saved.setId(uploaded.path("id").asText(id));
         saved.setTitle(doc.getTitle());
+
+        if (existingAcl == null) {
+            List<String> allowedRoles = (doc.getAllowedRoles() == null || doc.getAllowedRoles().isEmpty())
+                    ? List.of(callerRole.name())
+                    : doc.getAllowedRoles();
+            aclStore.save(saved.getId(), new DocumentAcl(callerId, allowedRoles));
+        }
+
         log.info("Uploaded SharePoint document {} as {}", saved.getId(), fileName);
-        return saved;
+        return withAcl(saved, saved.getId());
     }
 
-    public boolean deleteDocument(String id) {
+    public boolean deleteDocument(String id, String callerId, UserRole callerRole) {
         requireNotBlank(id, "Document id is required");
+        DocumentAccessGuard.check(aclStore.find(id).orElse(null), callerId, callerRole, id);
+
         String url = graphUrl("/sites/" + siteId + "/drive/items/" + encodePathSegment(id));
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(60))
@@ -124,6 +147,7 @@ public class SharePointClient {
         try {
             HttpResponse<Void> response = http.send(request, HttpResponse.BodyHandlers.discarding());
             if (response.statusCode() == 200 || response.statusCode() == 204) {
+                aclStore.delete(id);
                 log.info("Deleted SharePoint document {}", id);
                 return true;
             }
@@ -138,6 +162,14 @@ public class SharePointClient {
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete SharePoint document " + id, e);
         }
+    }
+
+    private Document withAcl(Document doc, String id) {
+        aclStore.find(id).ifPresent(acl -> {
+            doc.setOwnerId(acl.getOwnerId());
+            doc.setAllowedRoles(acl.getAllowedRoles());
+        });
+        return doc;
     }
 
     private JsonNode resolveSiteId() {

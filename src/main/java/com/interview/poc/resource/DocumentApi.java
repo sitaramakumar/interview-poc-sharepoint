@@ -57,20 +57,20 @@ public class DocumentApi {
 
     @GetMapping("/document")
     public ResponseEntity<?> list(@RequestHeader("Authorization") String authHeader) {
-        UserRole role = authorize(authHeader, "GET");
-        List<Document> docs = spClient.listDocuments();
+        AuthContext ctx = authorize(authHeader, "GET");
+        List<Document> docs = spClient.listDocuments(ctx.callerId(), ctx.role());
         return ResponseEntity.ok(Map.of(
                 "documents", docs,
                 "count",     docs.size(),
-                "role",      role.getName()
+                "role",      ctx.role().getName()
         ));
     }
 
     @GetMapping("/document/{id}")
     public ResponseEntity<?> get(@RequestHeader("Authorization") String authHeader,
                                  @PathVariable String id) {
-        UserRole role = authorize(authHeader, "GET");
-        Document doc = spClient.getDocument(id);
+        AuthContext ctx = authorize(authHeader, "GET");
+        Document doc = spClient.getDocument(id, ctx.callerId(), ctx.role());
         if (doc == null) {
             return ResponseEntity.status(404).body(Map.of(
                     "error", "Not found", "id", id));
@@ -81,25 +81,25 @@ public class DocumentApi {
     @PutMapping("/document/upload")
     public ResponseEntity<?> upload(@RequestHeader("Authorization") String authHeader,
                                     @RequestBody Document doc) {
-        UserRole role = authorize(authHeader, "PUT");
+        AuthContext ctx = authorize(authHeader, "PUT");
         if (doc.getModifiedBy() == null) {
-            doc.setModifiedBy(role.getName() + "-user");
+            doc.setModifiedBy(ctx.role().getName() + "-user");
         }
-        Document saved = spClient.createOrUpdateDocument(doc);
+        Document saved = spClient.createOrUpdateDocument(doc, ctx.callerId(), ctx.role());
         var spCreds = vault.readCredentials();
         return ResponseEntity.ok(Map.of(
                 "message",   "Document uploaded successfully",
                 "document",  saved,
                 "siteUrl",   spCreds.getSiteUrl(),
-                "role",      role.getName()
+                "role",      ctx.role().getName()
         ));
     }
 
     @DeleteMapping("/document/{id}")
     public ResponseEntity<?> delete(@RequestHeader("Authorization") String authHeader,
                                     @PathVariable String id) {
-        UserRole role = authorize(authHeader, "DELETE");
-        boolean deleted = spClient.deleteDocument(id);
+        AuthContext ctx = authorize(authHeader, "DELETE");
+        boolean deleted = spClient.deleteDocument(id, ctx.callerId(), ctx.role());
         if (!deleted) {
             return ResponseEntity.status(404).body(Map.of(
                     "error", "Not found", "id", id));
@@ -109,13 +109,20 @@ public class DocumentApi {
                 "message",  "Document deleted",
                 "id",       id,
                 "siteUrl",  spCreds.getSiteUrl(),
-                "role",     role.getName()
+                "role",     ctx.role().getName()
         ));
     }
 
     // ─── Auth helper ──────────────────────────────────────────────────────────
 
-    private UserRole authorize(String authHeader, String method) {
+    /**
+     * Coarse check only: can this role call this HTTP method at all. The
+     * fine-grained, per-document check (DocumentAccessGuard, inside
+     * SharePointClient) runs afterwards, once the specific document's ACL is
+     * known — that's why this can't be collapsed into a single
+     * @PreAuthorize("hasRole(...)") on the endpoint.
+     */
+    private AuthContext authorize(String authHeader, String method) {
         if (authHeader == null || authHeader.isBlank()) {
             throw new AuthException("Missing Authorization header");
         }
@@ -131,8 +138,10 @@ public class DocumentApi {
         }
         log.info("Auth OK: clientId={}, role={}, method={}",
                 claims.getSubject(), role.getName(), method);
-        return role;
+        return new AuthContext(role, claims.getSubject());
     }
+
+    private record AuthContext(UserRole role, String callerId) {}
 
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public static class AuthException extends RuntimeException {
