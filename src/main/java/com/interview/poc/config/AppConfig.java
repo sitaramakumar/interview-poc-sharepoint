@@ -19,10 +19,24 @@ public class AppConfig {
     }
 
     public static String get(String key) {
-        return props.getProperty(key);
+        return get(key, null);
     }
 
+    /**
+     * Resolves a config value, checking an environment-variable override first
+     * (e.g. {@code jwt.secret} → {@code JWT_SECRET}) so secrets don't have to be
+     * committed to application.properties for real deployments, then the
+     * properties file, then the supplied default.
+     */
     public static String get(String key, String defaultValue) {
+        String envValue = System.getenv(toEnvVarName(key));
+        if (envValue != null && !envValue.isBlank()) {
+            return envValue;
+        }
         return props.getProperty(key, defaultValue);
+    }
+
+    static String toEnvVarName(String key) {
+        return key.toUpperCase().replace('.', '_').replace('-', '_');
     }
 }

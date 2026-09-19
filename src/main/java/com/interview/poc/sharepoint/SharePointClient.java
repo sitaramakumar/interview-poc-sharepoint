@@ -1,4 +1,4 @@
-﻿package com.interview.poc.sharepoint;
+package com.interview.poc.sharepoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

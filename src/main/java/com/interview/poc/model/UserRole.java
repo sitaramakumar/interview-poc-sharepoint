@@ -14,6 +14,9 @@ public enum UserRole {
     }
 
     public boolean allows(String method) {
+        if (method == null) {
+            return false;
+        }
         return allowedMethods.contains(method.toUpperCase());
     }
 
