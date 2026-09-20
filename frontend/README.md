@@ -30,4 +30,22 @@ Point **Base URL** in the sidebar at whichever backend is running
   setting `allowedRoles` on upload to exercise the resource-level ACL.
 
 Everything here calls a real, running backend — there is no mocked or
-hardcoded response in this file.
+hardcoded response in `app.py` itself.
+
+## Tests
+
+`test_app.py` drives the app headlessly with Streamlit's own
+`streamlit.testing.v1.AppTest`, mocking only the network boundary
+(`requests.post`/`requests.request`) with responses matching what a live
+server actually returned when tested by hand — including the case where an
+access token expires mid-request *and* the refresh token has also expired,
+which is what caught a real bug: showing the warning and calling
+`st.rerun()` in the same script run meant the warning rendered into a run
+that got discarded before ever reaching the client. Fixed by stashing a
+`session_expired_notice` flag in `session_state` and rendering it on the
+login screen the rerun actually lands on.
+
+```bash
+pip install -r requirements-dev.txt
+pytest test_app.py -v
+```
